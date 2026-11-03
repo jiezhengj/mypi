@@ -22,13 +22,22 @@
 
 因此本次 go 附带一条硬性约束：**规格阶段必须把「谁能触发 agent」与「agent 能碰什么」写成可验证的验收条件**，而不是留到实现阶段靠自觉。若规格阶段发现这一层无法用简单手段收敛（例如容器逃逸面或鉴权实现成本超预期），退回 Option C（改用成熟产品）比硬扛更理性。
 
+## Validation Record (2026-11-03，go 之后追加)
+
+决策作出后，按要求在 NAS 上做了真实实施冒烟测试（代码在 `spike/`，镜像 `mypi-spike:0.1`，数据卷 `<NAS_DOCKER_DIR>/mypi/{workspace,sessions,pi}`）。结论**维持 go**，且证据从「文档推断」升级为「可复现实测」：
+
+- 已证实：SDK 进程内常驻、真实工具执行（`bash` / `write` 副作用落盘）、SSE 流式、Bearer 鉴权在 LAN 与公网入口都生效、容器重启后会话续接、Funnel 与既有 CouchDB 共存且支持 SSE。
+- 已量化：LAN 请求 7–53ms；Funnel 请求 1.11–2.41s；Funnel 上 SSE 端到端 2.85s（服务端处理仅 101ms）；容器常驻 90MiB / 0.03% CPU；镜像 537MB。
+- 已修正：pi 默认只激活 `read`/`bash`/`edit`/`write`，`grep`/`find` 需显式启用——「能力等价」的表述已同步收紧。
+- 仍阻塞：真实模型凭据路径（NAS Magpie 无可用 key、本机 Magpie 只听 127.0.0.1、sshd 禁转发）与 tailnet 专线延迟（Windows 未装客户端）。这两项不改变 go 的判断，但必须在规格阶段的验收条件里标成「待打通」。
+
 ## If go — Handoff to `$speckit-specify`
 
 - **Problem**: 让跑在 NAS 上的 pi agent 的完整内置能力（读写、搜索、执行、会话分支与压缩、模型切换）不再被「必须在家、必须在终端前」绑定；在不买域名、不租服务器的前提下，从外网 Windows 设备驱动同一个 agent。
 - **Chosen approach**: Option A —— 单 Node 容器内嵌 pi agent SDK，对外只暴露「发消息 / 流式回复 / 状态 / 中断」这一小组能力，工作目录挂载 NAS 卷，客户端为浏览器壳；入口以 Tailscale tailnet 直连为主、Tailscale Funnel 为降级应急。
 - **In scope**:
   - 单用户、单活跃会话的远程对话与流式输出。
-  - pi 内置工具全部可用（`read` / `write` / `edit` / `ls` / `grep` / `find` / `bash`；`powershell` 不适用于 Linux 服务端）。
+  - pi 可启用内置工具（默认 `read` / `bash` / `edit` / `write`，按需启用 `grep` / `find`；`powershell` 不适用于 Linux 服务端）。
   - 会话续接、分叉、压缩、模型与思考等级切换。
   - 两条访问入口（tailnet 主 / Funnel 备）共用同一服务。
   - 单令牌鉴权；容器工作目录限定在挂载卷内；凭据不进 agent 可读路径。
@@ -41,7 +50,8 @@
   - 容器重建 / NAS 重启后原会话可继续。
 - **Carried-forward open questions**:
   - [NEEDS CLARIFICATION: `bash` 与 `write` 的默认授权策略——「默认全开 + 容器边界」还是「默认只读、显式开启写与执行」？这是规格阶段第一条必须落定的验收条件。]
-  - [NEEDS CLARIFICATION: Funnel 这个降级入口是否需要前置第二道认证（独立令牌 / Cloudflare Access），还是服务端自身鉴权足以。]
-  - [NEEDS CLARIFICATION: 模型 provider 凭据以何种方式注入容器（环境变量 / 挂载只读配置 / 一次性登录态），以及额度耗尽时的失败表现。]
+  - [NEEDS CLARIFICATION（阻塞真实验收）: 模型 provider 凭据路径。实测 NAS 上的 Magpie 网关无可用 gateway key，Windows 本机 Magpie 只监听 `127.0.0.1`，NAS sshd 又是 `AllowTcpForwarding no`，反向借用也不成立。]
+  - [NEEDS CLARIFICATION: Windows 是否安装 Tailscale 客户端以打通「快入口」；不装则只剩 Funnel 的 1–2.4 秒路径。]
+  - [NEEDS CLARIFICATION: Funnel 是否再加一道前置认证；实测服务端 Bearer 令牌已能拦住公网未授权请求（401），但 Funnel 无法按来源 IP 限流。]
   - [NEEDS CLARIFICATION: 多会话边界——本期单活跃会话是否够用，还是规格阶段就要为「切换项目目录 / 多会话」留接口。]
-  - [NEEDS CLARIFICATION: 镜像如何在 NAS 上落地（代理构建 / 本地构建后离线导入），这会直接影响第一条验收的可执行性。]
+  - [已解决: 镜像如何在 NAS 落地——`docker build --network host` + `HTTP(S)_PROXY=http://127.0.0.1:7890` 实测可行；bind mount 目录需先 `chown -R 1000:10`。]

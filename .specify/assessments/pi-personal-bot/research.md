@@ -59,6 +59,39 @@
 - **pi 没有内置权限系统**：README「does not include a built-in permission system for restricting filesystem, process, network, or credential access」；security.md「does not ask for approval before every tool call」且「lack of a built-in sandbox ... outside the security boundary`；`project trust` 只管启动时加载哪些项目资源，明确「does not limit what tool calls can access」— [来源: https://github.com/earendil-works/pi、.../docs/security.md]（confidence: high）
 - Windows 客户端侧：WebView2 Runtime 已随 Windows 11 内置，Windows 10 绝大多数设备已装，缺失时约 2MB bootstrapper 可补 → Tauri v2 壳的安装成本很低 — [来源: https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution]（confidence: high）
 
+## 现场验证（2026-11-03 实现冒烟测试，非纸面推演）
+
+在 NAS 上真实构建并运行了一个最小服务（`spike/`，Node 24 容器 + pi SDK 进程内会话 + SSE + Bearer 令牌），用确定性 mock provider 驱动真实 agent 循环，验证结果如下。**所有数字均为现场实测**。
+
+### 已验证成立
+
+- **SDK 可在容器内常驻并驱动会话**：`createAgentSession()` 成功，日志 `session ready` + `tools: read,bash,edit,write`，无 TUI、无 stdio 桥。→ concept 的 A 方案可行，不必走 RPC 子进程桥。
+- **会话落盘并可跨容器重启续接**：`/data/sessions/*.jsonl`（session-format v3）挂 NAS 卷；`docker restart` 后 `continueRecent` 恢复同一 `sessionId`，`messages` 从 7 → 15 连续增长，历史未丢。
+- **真实工具执行**：`bash` 工具在容器内执行并返回 `Linux 6.18.15 x86_64`；`write` 工具写出 `/workspace/note.txt`，在 NAS `<NAS_DOCKER_DIR>/mypi/workspace/` 可见。工具副作用真实落到挂载卷。
+- **令牌鉴权有效**：LAN 与公网（Funnel）两条路径上，未携带 token 的 `POST /prompt` 均返回 `401`；携带正确 token 正常返回 SSE。
+- **Funnel 支持 SSE 且可与既有服务共存**：在同一 Tailscale 实例上新增 `--https=10000` 指向本服务，`8443 → CouchDB` 不受影响；流式事件逐个到达，服务端处理 101ms、客户端总耗时 2853ms。
+- **延迟量级**：`GET /health` 五次，LAN（<LAN_IP>）7–53ms；Funnel（`<TAILNET_HOST>:10000`）1.11–2.41s。与 research 阶段测得的 1.3–2.9s 同量级，跨境中继成本被再次证实。
+- **资源占用可忽略**：容器常驻 CPU 0.03%、内存 90MiB；镜像 537MB。
+
+### 实测推翻/修正的旧认知
+
+- **pi 内置工具不是「8 个全默认可用」**。`defaultTools` 官方默认只有 `read`、`bash`、`edit`、`write` 四个；`grep`、`find`、`powershell` 属于「可用但需显式启用」。源码里的 `ls.ts` 未出现在官方可用工具列表中。→ 后续规格里「能力等价」必须写成「等价于 pi 的可启用内置工具集」，而不是「默认就是全部」。
+- **启用 grep/find 的有效方式是显式传 SDK `tools` 数组**：实测 `tools: ["read","bash","edit","write","grep","find"]` 后 `getActiveToolNames()` 返回 6 项；仅靠 agent 目录 `settings.json` 的 `defaultTools` 在本次实验中未能让运行中的服务生效（同一进程内新建会话可生效，长期常驻进程需重启或显式传参）。
+
+### 新增的部署约束（实现阶段必须面对）
+
+- **镜像构建需要代理**：NAS 直连 Docker Hub 会因 IPv6 链路被重置而失败，需 `docker build --network host` + `HTTP(S)_PROXY=http://127.0.0.1:7890`（或预拉基础镜像）。
+- **bind mount 目录属主问题**：Docker 会以 root 创建缺失的挂载点目录，容器以 `--user 1000:10` 运行时会 `EACCES`；需先用 root 容器 `chown -R 1000:10`（或镜像内 entrypoint 做 PUID 初始化）。
+- **NAS 端口 9999 已被占用**（mock provider 首跑 `EADDRINUSE`），选端口不能假设默认值可用。
+- **NAS 的 sshd 配置 `AllowTcpForwarding no`**：反向 SSH 隧道不可用，这会排除「把本机资源反向借给 NAS」一类实现路径。
+- **NAS 上 `scp`/sftp 不可用**（`dest open ... No such file or directory`），文件传输需 `tar` + base64 over `ssh`。
+
+### 仍未验证（明确列为缺口）
+
+- **tailnet 直连延迟**：Windows 本机未安装 Tailscale，无法从「非 tailnet 成员」验证；该项仍是 A 方案主链路的核心未知。
+- **真实模型下的行为**：本次用确定性 mock provider，验证的是管道与工具，不是模型质量、工具选择能力或 token 成本。NAS 上的 Magpie 网关没有可用的 gateway key，Windows 本机的 Magpie 只监听 127.0.0.1。
+- **多会话 / 多设备并发**：只验证了单活跃会话。
+
 ## Evidence Against the Idea
 
 - **安全模型与「公网可达」直接冲突（最强反驳）**：pi 无权限系统、不逐次确认、无内置沙箱，官方把「prompt injection from untrusted content」列为超出安全边界；一旦服务端被公网触达，「谁能让它读到文本」就等于「谁能在 NAS 上执行命令」 — [来源: .../docs/security.md]（confidence: high）
