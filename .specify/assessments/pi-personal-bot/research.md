@@ -98,7 +98,7 @@
 ### 仍未验证（明确列为缺口）
 
 - **从真正的异地 Windows 设备发起验收**：本次公网链路是从同一局域网内的机器走 Funnel 回环验证的——网络路径确实是公网的，但客户端位置不是「异地」。
-- **tailnet 直连延迟**：Windows 本机未安装 Tailscale，无法从「非 tailnet 成员」验证；该项仍是 A 方案主链路的核心未知。
+- **tailnet 直连延迟**：不再验证——已决定客户端不安装组网客户端，tailnet 直连不作为入口（该路径仅作为备选记录保留）。
 - **多会话 / 多设备并发**：只验证了单活跃会话。
 - **额度与成本**：只跑了若干次短任务，没有长上下文与大工具输出的成本数据。
 
@@ -115,7 +115,7 @@
 
 ## Gaps & Open Questions
 
-- [NEEDS CLARIFICATION: 主链路选哪条——「Windows 装 Tailscale 走 tailnet 直连」（稳、快、要装客户端）还是「免装客户端的 Funnel」（慢 1.3–2.9s）？这决定客户端的网络前提。]
+- [已解决: 主链路只有一条——服务端侧 Tailscale Funnel + 浏览器客户端（零安装）。tailnet 直连被排除，因为未来 iOS/Android 客户端不能要求安装并常驻 Tailscale；代价是接受 1–3 秒中继延迟，且入口面向公网全体、门禁必须放在应用层。]
 - [NEEDS CLARIFICATION: 服务端要不要给 bash / 写文件能力？只读问答与可执行助理是两种安全边界与两种容器形态。]
 - [NEEDS CLARIFICATION: 引擎路线选 `pi-coding-agent`（RPC 桥或进程内 SDK）还是 chord app kit？前者代码少但功能自己长，后者功能多但系统形状被锁定。]
 - [NEEDS CLARIFICATION: 第一期客户端是否可以只是「浏览器壳 / Edge --app 指向服务端页面」？若不接受，需要额外承担 Tauri 壳成本。]
