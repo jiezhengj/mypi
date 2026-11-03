@@ -1,0 +1,47 @@
+# Decision: 基于 pi 的远程个人助理，值得进入规格阶段
+
+- **Slug**: pi-personal-bot
+- **Decided**: 2026-11-03
+- **Verdict**: go
+- **Artifacts reviewed**: intake.md ✅ | research.md ✅ | problem.md ✅ | concept.md ✅
+
+## Scorecard
+
+| Criterion | Rating | Justification |
+| --- | --- | --- |
+| Problem validity | strong | 「人不在家 = 失去 NAS 上 agent 的动手能力」是用户每天都能感知的切口，替代方案（远程桌面 / SSH 回 NAS）体验割裂且手机端几乎不可用；用户已经在用 Tailscale Funnel 把 CouchDB 暴露到公网，说明这不是空想需求而是他已有的实践习惯。 |
+| Evidence strength | strong | 关键事实全部有一手来源或实测：pi 无 HTTP 服务模式（源码 `src/modes/` 只有四种 + cli.md）、内置工具集（`src/core/tools/` 实测目录）、无内置权限系统（官方三处声明）；连通性侧有 NAS 现场实测（Funnel 已启用、单请求额外 1.3–2.9 秒、仅 443/8443/10000）、Cloudflare 账户 `zones=[]`、官方文档对 Quick Tunnel/Vercel/ngrok 的硬限制。仍有少量未验证假设（SDK 进程内实测、镜像构建路径），已在 concept 的 Assumptions 中列明。 |
+| Value vs. inaction | strong | 不作为的代价是明确的：出门即失去能力，已购置的 NAS 算力与 5.3TB 存储只在局域网内兑现。而作为的边际成本是「一个容器 + 一个访问入口」，没有新增订阅费。反向看，价值集中在单用户，因此衡量的是「自用是否值回几天工程投入」，答案偏向值。 |
+| Feasibility / appetite | strong | Option A 的体量与用户「不设上限但要能持续迭代」的诉求匹配：第一期是数天量级可验收的闭环（远程对话 + 一次真实工具调用），而不是一次性产品。最大不确定性集中在镜像构建与鉴权实现，属可控工程量。 |
+| Strategic fit | adequate | 项目尚未建立 Constitution，因此只能对齐 intake/research 阶段确立的自定目标：基于 pi、不买域名不租服务器、NAS 自持。三项均被 Option A 满足。Constitution 缺失是本次评分的扣分项，需在 Feature SDD 前补建。 |
+| Risk posture | adequate | 主要风险已被识别且缓解手段具体：公网暴露 × 无权限系统 → 单令牌鉴权 + 容器隔离 + 挂载范围收敛 + 不给宿主 `~/.pi/agent`；跨境链路抖动 → tailnet 为主、Funnel 降级；NAS 出网受限 → 镜像需代理构建或离线导入。扣分点在于这些缓解目前只是设计，尚未验证，且 `bash` 全开是显著残余风险。 |
+
+## Verdict & Rationale
+
+**go。** 证据强度达标（不是靠假设支撑），问题真实，且存在一个体量与诉求匹配的推荐选项（Option A：进程内跑 pi 内置能力 + 极薄服务 + 浏览器壳 + 双入口）。这个结论的关键不在于「技术上能不能做」——research 已经证明能做——而在于**边界是否可控**：能力等价（含 `bash`）与公网可达这两件事放在一起，安全边界必须由我们显式设计，而不是依赖 pi 或框架的默认值。
+
+因此本次 go 附带一条硬性约束：**规格阶段必须把「谁能触发 agent」与「agent 能碰什么」写成可验证的验收条件**，而不是留到实现阶段靠自觉。若规格阶段发现这一层无法用简单手段收敛（例如容器逃逸面或鉴权实现成本超预期），退回 Option C（改用成熟产品）比硬扛更理性。
+
+## If go — Handoff to `$speckit-specify`
+
+- **Problem**: 让跑在 NAS 上的 pi agent 的完整内置能力（读写、搜索、执行、会话分支与压缩、模型切换）不再被「必须在家、必须在终端前」绑定；在不买域名、不租服务器的前提下，从外网 Windows 设备驱动同一个 agent。
+- **Chosen approach**: Option A —— 单 Node 容器内嵌 pi agent SDK，对外只暴露「发消息 / 流式回复 / 状态 / 中断」这一小组能力，工作目录挂载 NAS 卷，客户端为浏览器壳；入口以 Tailscale tailnet 直连为主、Tailscale Funnel 为降级应急。
+- **In scope**:
+  - 单用户、单活跃会话的远程对话与流式输出。
+  - pi 内置工具全部可用（`read` / `write` / `edit` / `ls` / `grep` / `find` / `bash`；`powershell` 不适用于 Linux 服务端）。
+  - 会话续接、分叉、压缩、模型与思考等级切换。
+  - 两条访问入口（tailnet 主 / Funnel 备）共用同一服务。
+  - 单令牌鉴权；容器工作目录限定在挂载卷内；凭据不进 agent 可读路径。
+  - 会话持久化在 NAS 卷上，容器重建后可继续。
+- **Out of scope**: 插件/扩展/skills/MCP 生态、多用户、IM 通道、手机原生客户端、Windows 本地文件执行、TUI 复刻、公网匿名访问、生产级监控告警与高可用、安装器与自动更新。
+- **Success metrics**:
+  - 非局域网的 Windows 设备上完成 ≥3 轮对话且 ≥1 次真实内置工具调用产生可验证副作用。
+  - 未授权请求成功率 0%（一律 401/403）。
+  - 快入口（tailnet）首字延迟 P50 < 2 秒；Funnel 入口 P50 < 5 秒。
+  - 容器重建 / NAS 重启后原会话可继续。
+- **Carried-forward open questions**:
+  - [NEEDS CLARIFICATION: `bash` 与 `write` 的默认授权策略——「默认全开 + 容器边界」还是「默认只读、显式开启写与执行」？这是规格阶段第一条必须落定的验收条件。]
+  - [NEEDS CLARIFICATION: Funnel 这个降级入口是否需要前置第二道认证（独立令牌 / Cloudflare Access），还是服务端自身鉴权足以。]
+  - [NEEDS CLARIFICATION: 模型 provider 凭据以何种方式注入容器（环境变量 / 挂载只读配置 / 一次性登录态），以及额度耗尽时的失败表现。]
+  - [NEEDS CLARIFICATION: 多会话边界——本期单活跃会话是否够用，还是规格阶段就要为「切换项目目录 / 多会话」留接口。]
+  - [NEEDS CLARIFICATION: 镜像如何在 NAS 上落地（代理构建 / 本地构建后离线导入），这会直接影响第一条验收的可执行性。]
