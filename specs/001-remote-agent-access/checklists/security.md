@@ -11,13 +11,13 @@
 ## Requirement Completeness
 
 - [ ] CHK001 是否为每一个 `/api/*` 接口明确了鉴权要求，并给出「允许匿名」的例外清单（若有）？ [Completeness, Spec §FR-002]
-- [ ] CHK002 是否定义了凭证的完整生命周期——签发、使用、最近使用记录、吊销、以及泄漏后的处置？ [Completeness, Spec §FR-018/FR-019]
+- [ ] CHK002 是否定义了令牌的完整生命周期——签发、使用、最近使用记录、吊销、以及泄漏后的处置？ [Completeness, Spec §FR-018/FR-019]
 - [ ] CHK003 是否列出了审计必须覆盖的动作类型，并说明每类记录用于回答什么问题？ [Completeness, Spec §FR-008]
 - [ ] CHK004 是否明确了 Agent 可访问的文件范围边界（工作目录、会话目录、以及明确排除的宿主路径）？ [Completeness, Spec §FR-009]
 
 ## Requirement Clarity
 
-- [ ] CHK005 锁定规则中的「同一来源」是否被定义清楚——是来源 IP、设备凭证，还是二者组合？ [Ambiguity, Spec §SC-005]
+- [ ] CHK005 锁定规则中的「同一来源」是否被定义清楚——是来源 IP、设备令牌，还是二者组合？ [Ambiguity, Spec §SC-005]
 - [ ] CHK006 「吊销后立即生效」中的「立即」是否被量化为可判定的时间点（例如「该设备的下一次请求」）？ [Clarity, Spec §FR-018]
 - [ ] CHK007 「未授权响应不得泄露会话存在性」是否有可执行的判定标准（响应体、状态码、时序三个维度）？ [Measurability, Spec §FR-002]
 - [ ] CHK008 限流阈值（每设备每分钟 60 次、每来源每分钟 120 次）是否写进了需求文档，而不是只存在于计划里？ [Clarity, Gap]
@@ -36,20 +36,20 @@
 
 ## Scenario Coverage
 
-- [ ] CHK015 是否定义了凭证泄漏后的处置需求（吊销、审计回溯、是否通知其他设备）？ [Coverage, Gap]
+- [ ] CHK015 是否定义了令牌泄漏后的处置需求（吊销、审计回溯、是否通知其他设备）？ [Coverage, Gap]
 - [ ] CHK016 是否定义了锁定期间用户的自救路径——能否解锁、如何解锁、需要等待多久？ [Coverage, Gap]
 - [ ] CHK017 是否说明了服务重启对锁定计数与限流窗口的影响（清零是否可接受、为什么）？ [Coverage, Gap]
 - [ ] CHK018 是否定义了多设备同时操作同一会话时的并发语义（第二个设备看到的「处理中」代表什么）？ [Coverage, Spec §FR-013]
 
 ## Edge Case Coverage
 
-- [ ] CHK019 存储空间不足时「停止写入」的范围是否明确——会话、审计、凭证表三者是否都被覆盖？ [Edge Case, Spec §FR-017]
+- [ ] CHK019 存储空间不足时「停止写入」的范围是否明确——会话、审计、令牌表三者是否都被覆盖？ [Edge Case, Spec §FR-017]
 - [ ] CHK020 不可信内容在界面上的「标注」是否有可判定的标准（标注哪些元素、用什么形式、由谁决定）？ [Edge Case, Spec §FR-015]
 
 ## Non-Functional Requirements
 
 - [ ] CHK021 审计数据的「无限期保留」与「可按时间/设备查询」是否同时被明确为需求？ [NFR, Spec §FR-016]
-- [ ] CHK022 公网入口不可用时，用户能否明确区分「入口不可达」与「凭证失效」？ [NFR, Spec §Edge Cases]
+- [ ] CHK022 公网入口不可用时，用户能否明确区分「入口不可达」与「令牌失效」？ [NFR, Spec §Edge Cases]
 
 ## Dependencies & Assumptions
 
