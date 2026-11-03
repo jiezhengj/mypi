@@ -1,50 +1,94 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# mypi 项目宪法
 
-## Core Principles
+## 核心原则
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. 能力来自 pi，不自研运行时
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+本项目是 pi（`earendil-works/pi`）的**远程可达外壳**。Agent 能力必须全部来自 pi 的可启用内置工具集与会话语义，不得另起炉灶。
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+- 能力范围：`read` / `bash` / `edit` / `write` 为默认启用；`grep` / `find` 按需显式启用；会话的续接、分叉、回退、压缩沿用 pi 的语义。
+- 必须：直接使用 pi 的官方 SDK 或官方集成形态，并锁定版本；升级需要单独评估与验证。
+- 不得：自研 agent 循环、工具执行器、会话存储格式；不得以复制 pi 源码再改为「等价」。
+- 不得（本期范围）：引入第三方插件、扩展、skills、MCP 或 prompt 模板生态。
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+理由：评估阶段已实测进程内 SDK 足以承载能力等价与远程化；自研等于重做已被解决的问题，并把维护成本永久背上。
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### II. 零安装客户端，单一服务端入口
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+客户端只要求一个能打开网页的浏览器。
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+- 唯一入口：服务端侧的 TLS 反向代理（当前为 Tailscale Funnel）。
+- 不得：把「客户端安装并常驻 VPN / 组网 / 隧道客户端」作为交付前提或推荐路径。
+- 客户端形态必须为后续 iOS / Android 客户端复用同一种形态，不得为单一平台做专属依赖。
+- 延迟目标以单一公网入口为前提设定，不得以「装上组网客户端就快了」作为补偿手段。
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+理由：用户已明确否决客户端侧组网——多一个平台的客户端依赖，就多一份安装摩擦与不可用场景。
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### III. 暴露即攻击面（不可协商）
+
+pi 没有权限系统：能触发 agent，就等于能在容器内执行命令。因此「公网可达」必须先证明门禁可验证，才允许交付。
+
+- 默认拒绝：任何未携带有效凭证的请求必须被拒绝（401/403），不得存在匿名可用路径。
+- 必须实现：认证、限流、认证失败锁定、会话隔离，以及「谁在什么时候触发了什么」的审计记录。
+- 边界必须收敛：容器内只挂载专用工作卷与会话卷；宿主个人配置（如用户的 pi 配置目录与个人凭据）不得进入 agent 可读路径。
+- 任何涉及触发面或执行面的变更，其验收条件必须写明「谁能触发」「能碰什么」「如何验证」。
+
+理由：入口收敛为单一公网入口后，应用层是唯一门禁，网络层不再提供任何隐式保护。
+
+### IV. 实证优先于推断
+
+关于行为的结论必须来自实际运行结果，而不是文档推断或代码审阅的猜测。
+
+- 功能完成的判据是可复现的验证证据：测试、实测日志、可重放的命令，三者至少其一。
+- 无法验证的事项必须显式标注为「未验证」，并说明原因与影响，不得以模糊表述掩盖。
+- 计划与评估中出现的一切数字（延迟、体积、内存、并发上限）必须标明来源：实测 / 官方文档 / 推断。
+- 结论被实测推翻时，必须更新结论本身，而不是保留旧结论再补一句说明。
+
+理由：评估阶段出现过真实的认知偏差——从源码目录数出「8 个内置工具」，实测默认只激活 4 个；这类错误只能靠实证纪律拦住。
+
+### V. 最小可运维
+
+- 运行时是一个容器加明确的挂载卷；不引入数据库、消息队列、编排系统等额外常驻组件，除非有实测数据证明必需。
+- 会话与工作数据必须落在可持久化卷上，容器重建后会话可继续。
+- 每个变更必须可回滚：保留上一个可用镜像标签与启动参数，回滚步骤写进变更说明。
+
+理由：单人自用的项目，运维预算应当花在能力上，而不是平台复杂度上。
+
+## 安全与合规约束
+
+### 凭据与公开仓库
+
+- 本仓库是公开仓库：任何测试环境的真实取值（IP、域名、主机名、路径、账号、令牌、密钥）不得进入提交、提交信息、Issue 或 PR，一律使用占位符。
+- 真实取值只允许存在于不入版本库的位置（如本地 `.git/info/private-patterns.txt`）。
+- 提交前扫描必须启用且不得绕过：`.githooks/pre-commit` 调用 `scripts/secret-scan.mjs`；禁止使用 `git commit --no-verify` 规避。
+- 模型与第三方凭据只通过运行时环境注入，不得写入镜像、仓库或 agent 可读的配置文件。
+
+### 依赖与供应链
+
+- 依赖以锁定版本安装并使用 `--ignore-scripts`；新增依赖必须说明用途与来源。
+- 容器镜像只从可信基线构建，构建参数可复现；不引入来源不明的镜像层。
+
+### 数据边界
+
+- agent 的读写范围限定在挂载的工作卷内，宿主其他目录不得暴露。
+- 会话记录属于个人数据，不得上传至第三方服务。
+
+## 开发与评审流程
+
+- 流程入口按目标选择：想法未定 → Assessment；预期行为被违反 → Bug Fix；新增或明显改变行为 → Feature SDD（按影响面选短路径或完整路径）。
+- 每个阶段的产物必须经人工审阅后才进入下一阶段，不得连续自动跑完多个阶段。
+- Feature 的规格必须包含可验收的验收条件（Given/When/Then 或等价形式），并与本宪法各条原则逐条对应。
+- 实现完成前必须重做用户最初描述的场景；仅单元测试通过不足以证明功能完成。
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+- 本宪法优先于其他实践约定。与其他规则、习惯或既有实现冲突时，先修订宪法，再改行为。
+- 修订流程：提出变更 → 影响分析（影响哪些原则、模板与既有功能）→ 确定版本号 → 更新「最后修订」日期 → 提交审阅。
+- 版本策略（语义化）：
+  - MAJOR：删除或重新定义原则、改变不可协商边界；
+  - MINOR：新增原则或新增章节、实质性扩展；
+  - PATCH：措辞澄清、错别字、不改变语义的调整。
+- 合规审查：每个 Feature 的计划与任务清单必须说明如何满足各条原则；无法满足时必须记录例外、原因与补偿措施，并经审阅。
+- 修订记录以 git 提交历史为准，不另建台账。
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-11-03 | **Last Amended**: 2026-11-03
