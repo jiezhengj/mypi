@@ -79,3 +79,14 @@ Assessment 可以用于软件或非软件想法，不要求已有源代码，不
 - 不增加本地自建生命周期、工作流、预设、Bundle、额外 Discovery 阶段、审批台账或任务状态机。
 - 不把未运行的 CLI 检查、技能或扩展报告为已完成；操作结果、阶段产物和验证证据须如实汇报。
 <!-- PROJECT-SPEC-KIT-GOVERNANCE:END -->
+
+# 私密与测试信息保护
+
+本仓库是**公开仓库**。任何与本机/家庭环境相关的真实值都不得进入提交、提交信息、Issue、PR 或文档：公网与内网 IP、IPv6、主机名与 Tailscale/自定义域名、NAS 型号与数据卷路径、容器名之外的内部拓扑、令牌与 API key、代理端口、本机账号路径。
+
+- 需要描述这类信息时，一律写占位符：`<LAN_IP>`、`<PUBLIC_IPV4>`、`<TAILNET_HOST>`、`<NAS_MODEL>`、`<NAS_DOCKER_DIR>`、`<DOCKER_BRIDGE_IP>`、`<HOME>`、`<REDACTED_KEY>`。
+- 真实取值只写在本地 `.git/info/private-patterns.txt`（一行一个正则或字面量，不进版本库），扫描脚本会额外按这些值拦截。
+- 提交前由 `.githooks/pre-commit` 调用 `node scripts/secret-scan.mjs` 扫描暂存内容；扫描不通过必须改成占位符后重试，**不得用 `git commit --no-verify` 绕过**。
+- 新克隆仓库后先执行 `node scripts/install-git-hooks.mjs` 启用钩子。
+- 自查命令：`node scripts/secret-scan.mjs --all` 扫全部已跟踪文件，`node scripts/secret-scan.mjs --range <range>` 扫提示范围。
+- 确属误报时在该行加注释标记 `secret-scan: allow`，不要放宽全局规则。

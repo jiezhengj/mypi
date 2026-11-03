@@ -77,5 +77,5 @@ Option C 作为对照组保留：如果 A 在验证阶段发现「鉴权与沙�
 - ✅ **已验证**：内置工具在 Linux 容器内行为完整（`bash` 执行、`write` 落盘到挂载卷）；`grep`/`find` 需显式传入 SDK `tools` 数组才启用，`powershell` 与 Linux 服务端无关。
 - ✅ **已验证**：Funnel 可与现有 CouchDB 的 8443 共存（另起 10000 端口），且**支持 SSE**流式输出。
 - ⚠️ **部分验证**：会话持久化成立（容器重启后同一 `sessionId` 续接），但「多会话 / 多设备」未测。
-- ❌ **未验证（阻塞项）**：模型 provider 凭据如何进入容器。NAS 上的 Magpie 网关无可用 gateway key，Windows 本机 Magpie 仅监听 `127.0.0.1`，NAS sshd 又禁用了 TCP 转发——真实模型链路尚无可行凭据路径。
-- ❌ **未验证**：Windows 侧 tailnet 直连（本机未安装 Tailscale），因此「快入口 P50 < 2 秒」尚未被证实。
+- ✅ **已验证**：真实模型链路成立——接入真实 OpenAI 兼容网关后，模型能自主选择并连续调用 `bash` / `read`，且多轮上下文可凭历史回答；凭据经环境变量注入、由 `models.json` 的 `${PI_API_KEY}` 引用，不写入文件。
+- ❌ **未验证**：Windows 侧 tailnet 直连（本机未安装 Tailscale），因此「快入口 P50 < 2 秒」尚未被证实；已实测的公网入口路径为 1–3 秒量级。

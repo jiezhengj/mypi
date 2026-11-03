@@ -27,9 +27,10 @@
 决策作出后，按要求在 NAS 上做了真实实施冒烟测试（代码在 `spike/`，镜像 `mypi-spike:0.1`，数据卷 `<NAS_DOCKER_DIR>/mypi/{workspace,sessions,pi}`）。结论**维持 go**，且证据从「文档推断」升级为「可复现实测」：
 
 - 已证实：SDK 进程内常驻、真实工具执行（`bash` / `write` 副作用落盘）、SSE 流式、Bearer 鉴权在 LAN 与公网入口都生效、容器重启后会话续接、Funnel 与既有 CouchDB 共存且支持 SSE。
-- 已量化：LAN 请求 7–53ms；Funnel 请求 1.11–2.41s；Funnel 上 SSE 端到端 2.85s（服务端处理仅 101ms）；容器常驻 90MiB / 0.03% CPU；镜像 537MB。
+- 已证实（真实模型补测）：接入真实 OpenAI 兼容网关后，模型自主连续调用 `bash` / `read`，多轮上下文可凭历史回答；公网入口 + 真实模型同时成立。凭据以环境变量注入、由 `models.json` 的 `${PI_API_KEY}` 引用，不写入镜像与仓库。
+- 已量化：LAN 请求 7–53ms；Funnel 请求 1.11–2.41s；Funnel 上 SSE 端到端 2.85s（服务端处理仅 101ms）；真实模型纯文本轮 TTFT 1.28–1.40s、两轮工具调用任务 TTFT 6.01s、公网入口 TTFT 3.04s；容器常驻 90MiB / 0.03% CPU；镜像 537MB。
 - 已修正：pi 默认只激活 `read`/`bash`/`edit`/`write`，`grep`/`find` 需显式启用——「能力等价」的表述已同步收紧。
-- 仍阻塞：真实模型凭据路径（NAS Magpie 无可用 key、本机 Magpie 只听 127.0.0.1、sshd 禁转发）与 tailnet 专线延迟（Windows 未装客户端）。这两项不改变 go 的判断，但必须在规格阶段的验收条件里标成「待打通」。
+- 仍阻塞：tailnet 专线延迟（Windows 未装客户端），以及「真正的异地客户端」验收。这两项不改变 go 的判断，但必须在规格阶段的验收条件里标成「待打通」。
 
 ## If go — Handoff to `$speckit-specify`
 
@@ -50,7 +51,7 @@
   - 容器重建 / NAS 重启后原会话可继续。
 - **Carried-forward open questions**:
   - [NEEDS CLARIFICATION: `bash` 与 `write` 的默认授权策略——「默认全开 + 容器边界」还是「默认只读、显式开启写与执行」？这是规格阶段第一条必须落定的验收条件。]
-  - [NEEDS CLARIFICATION（阻塞真实验收）: 模型 provider 凭据路径。实测 NAS 上的 Magpie 网关无可用 gateway key，Windows 本机 Magpie 只监听 `127.0.0.1`，NAS sshd 又是 `AllowTcpForwarding no`，反向借用也不成立。]
+  - [已解决: 模型 provider 凭据路径——用真实网关补测通过；跨容器访问宿主机网关需走 `<DOCKER_BRIDGE_IP>`，凭据以环境变量注入并由 `models.json` 的 `${PI_API_KEY}` 引用，不进镜像与仓库。]
   - [NEEDS CLARIFICATION: Windows 是否安装 Tailscale 客户端以打通「快入口」；不装则只剩 Funnel 的 1–2.4 秒路径。]
   - [NEEDS CLARIFICATION: Funnel 是否再加一道前置认证；实测服务端 Bearer 令牌已能拦住公网未授权请求（401），但 Funnel 无法按来源 IP 限流。]
   - [NEEDS CLARIFICATION: 多会话边界——本期单活跃会话是否够用，还是规格阶段就要为「切换项目目录 / 多会话」留接口。]

@@ -1,3 +1,16 @@
 /.agent-state/spec_kit_component_update_cache.json
 /.specify/workflows/.cache/
 /.specify/extensions/.cache/
+
+# 本地私密与测试产物：绝不进入公开仓库
+.env
+.env.*
+!.env.example
+*.secret
+*.pem
+*.key
+.local/
+.secrets/
+spike/.token.tmp
+spike/body.json
+spike/*.tgz

@@ -1,0 +1,12 @@
+#!/bin/sh
+# 提交前扫描暂存内容，阻止私密/测试信息进入公开仓库。
+set -eu
+
+root=$(git rev-parse --show-toplevel)
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "secret-scan: 未找到 node，无法扫描；请安装 Node.js 后重新提交" >&2
+  exit 1
+fi
+
+exec node "$root/scripts/secret-scan.mjs"
