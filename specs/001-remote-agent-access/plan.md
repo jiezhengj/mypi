@@ -16,7 +16,7 @@
 
 **Storage**: SQLite 数据库 `/data/mypi.db`（设备令牌表、审计事件表，WAL 模式）+ pi 会话 JSONL（`/data/sessions`）+ 工作目录（`/workspace`）
 
-**Testing**: `node:test`（内置）做单元与契约测试；集成测试用真实 HTTP 起临时实例；SSE 事件解析用共享的契约解析器
+**Testing**: `node:test`（内置）做单元、契约与集成测试；移动端用 Playwright（仅 devDependency，不进运行镜像）的 WebKit / Chromium 移动视口做自动化断言；SSE 事件解析用共享的契约解析器
 
 **Target Platform**: Linux 容器（x86_64，NAS），Node 24 slim 基线镜像
 

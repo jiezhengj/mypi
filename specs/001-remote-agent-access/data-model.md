@@ -121,7 +121,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_device ON audit_events(device_id, ts DESC);
 | `ts` | ISO8601 | 必填 | 事件时间 |
 | `deviceId` | string \| null | 可空 | 认证失败时为 null，但保留 `tokenPrefix` 便于排查 |
 | `tokenPrefix` | string \| null | 可空 | 失败尝试携带的前缀（若有） |
-| `kind` | `auth` \| `message` \| `action` \| `abort` \| `device` | 必填 | 事件类别 |
+| `kind` | `auth` \| `message` \| `action` \| `abort` \| `device` \| `probe` | 必填 | 事件类别 |
 | `detail` | string | ≤ 200 字符 | 摘要，**不得包含令牌明文与完整消息正文** |
 | `result` | `ok` \| `denied` \| `error` | 必填 | 结果 |
 

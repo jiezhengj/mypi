@@ -159,6 +159,29 @@ data: {"messageId":"m12","totalMs":1808,"status":"idle"}
 
 不得返回令牌明文或完整消息正文。
 
+## POST /api/probe
+
+客户端自报能力与实测指标的通道，用于在**没有真机**的情况下留下可核对的移动端证据。需鉴权；不读写会话。
+
+请求体：
+
+```json
+{
+  "supportsStream": true,
+  "fallbackTriggered": false,
+  "firstDeltaMs": 1830,
+  "totalMs": 4210,
+  "viewport": { "width": 390, "height": 844 },
+  "dpr": 3,
+  "ua": "…",
+  "notes": "webview/emulator 标记"
+}
+```
+
+响应：`204 No Content`。服务端将其记为一条 `kind=probe` 的审计事件（指标进 `detail`，`ua` 截断到 120 字符）。
+
+**约束**：`/api/probe` 不得影响会话状态；同一来源的 probe 频率受限流约束。
+
 ## 静态资源
 
 | 路径 | 内容 |

@@ -136,11 +136,27 @@ curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN_A" \
 
 **通过条件**：agent 把该内容当作资料描述，不执行其中的「指令」；界面上该段内容带有「来自工具结果 / 不可信」的标注。
 
-### V10 — 手机浏览器可用（FR-011、SC-006）
+### V10 — 移动视口可用（FR-011、SC-006）
 
-用手机浏览器打开公网入口，粘贴令牌，完成一次完整对话（输入、看到流式输出、中断一次）。
+本项目没有真机测试条件，因此用 Playwright 的移动视口模拟作为证据：
 
-**通过条件**：无需缩放或横向滚动；输入框在软键盘弹出时可见；中断按钮可点。
+```bash
+npx playwright test tests/integration/mobile-web.test.ts
+```
+
+覆盖：WebKit 与 Chromium 各跑 390×844、360×640；断言页面无横向滚动、输入框与中断按钮的点击区 ≥ 44×44、首 `delta` 早于 `done`。
+
+另外用 `POST /api/probe` 留证据（真机或模拟都可调用）：
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"supportsStream":true,"fallbackTriggered":false,"firstDeltaMs":1830,"totalMs":4210,"viewport":{"width":390,"height":844},"dpr":3,"ua":"..."}' \
+  http://127.0.0.1:<PORT>/api/probe
+# 期望：204
+```
+
+**通过条件**：模拟测试全绿；probe 记录可在 `audit_events`（`kind=probe`）中查到。**真机不在验收范围**（见文末「已知未验证项」）。
 
 ### V11 — 公网入口延迟（SC-001）
 
@@ -178,6 +194,16 @@ docker run -d --name mypi ... mypi:<上一个可用 sha>
 ```
 
 卷不删除即不丢数据；如需彻底回退到空白状态，另行备份 `<DATA_DIR>` 后再动。
+
+## 已知未验证项
+
+以下内容**没有**被验证过，不得在交付说明里写成已通过：
+
+1. **真实 iOS Safari 的流式行为**：本项目无 iPhone，验收只用 Playwright 的 WebKit 视口模拟；真实设备的网络栈与 Safari 版本差异未经测试。风险由 FR-020 的降级路径对冲，但降级是否在真实 iOS 上能顺利触发，同样未验证。
+2. **软键盘弹出时的输入框可见性**：需要真机才能判定，模拟只能改变视口尺寸近似。
+3. **网络切换（Wi-Fi ↔ 蜂窝）时流式中断的行为**：需要真机。
+
+将来若拿到可用设备，按 V10 的探测接口补一次即可把这三项转为已验证。
 
 ## 验证记录模板
 

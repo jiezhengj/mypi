@@ -124,7 +124,10 @@
 ## Phase 7: Polish & Cross-Cutting Concerns
 
 - [ ] T039 `src/server/routes/audit.ts`：`GET /api/audit?limit`（倒序、`limit` 上限 200）
-- [ ] T040 [P] 移动端实测：iOS Safari 的 `ReadableStream` 行为（V10、SC-006）；不可用则降级为「SSE + 断线重连轮询」，并把结论写回 `research.md`
+- [ ] T040a [P] `POST /api/probe`：客户端自报能力与指标（不碰会话），记 `kind=probe` 审计；契约补进 `contracts/http-api.md`；测试 `tests/integration/probe.test.ts`
+- [ ] T040b [P] Playwright（devDependency，不进镜像）移动视口测试 `tests/integration/mobile-web.test.ts`：WebKit 与 Chromium 各跑 390×844 / 360×640，断言无横向滚动、输入框与中断按钮 ≥ 44×44、首 delta 早于 done（对应 V10、SC-006 的模拟部分）
+- [ ] T040c 客户端降级路径：流式不可用或中断时改走非流式完成同一轮对话，并在界面告知降级（FR-020）；用 Playwright 强制关闭流式验证该路径
+- [ ] T040d 把「真机行为未验证」写入 `quickstart.md` 的已知风险栏与 `research.md` 的验证清单，不得写成已通过
 - [ ] T041 [P] 性能测量（V11、SC-001）：重复 5 次记录「请求 → 首个 `delta`」，把 P50/P95 填入 quickstart 验证记录
 - [ ] T042 安全加固复查：响应头（`nosniff`、`frame-ancestors`、`referrer-policy`）、CSP、`/healthz` 不含会话信息、日志不打印令牌
 - [ ] T043 [P] 运维文档占位：`docs/deploy.md`（卷、入口、回滚、备份=复制 `mypi.db`），全部使用占位符
