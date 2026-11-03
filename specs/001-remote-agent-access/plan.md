@@ -12,9 +12,9 @@
 
 **Language/Version**: TypeScript 5.x，运行在 Node.js 24（利用原生类型剥离，无构建步骤；若剥离不可用则回退 `tsx`）
 
-**Primary Dependencies**: `@earendil-works/pi-coding-agent`（锁定 `1.5.0`）、`express` 5.x（路由、SSE、静态资源）；无前端框架、无打包器
+**Primary Dependencies**: `@earendil-works/pi-coding-agent`（锁定 `1.5.0`）、`express` 5.x（路由、SSE、静态资源）、`node:sqlite`（Node 24 内置，用于令牌与审计；不可用时回退 `better-sqlite3`）；无前端框架、无打包器
 
-**Storage**: 文件存储，全部落在挂载卷：pi 会话 JSONL（`/data/sessions`）、设备令牌表与审计日志（`/data/config`、`/data/audit`）、工作目录（`/workspace`）
+**Storage**: SQLite 数据库 `/data/mypi.db`（设备令牌表、审计事件表，WAL 模式）+ pi 会话 JSONL（`/data/sessions`）+ 工作目录（`/workspace`）
 
 **Testing**: `node:test`（内置）做单元与契约测试；集成测试用真实 HTTP 起临时实例；SSE 事件解析用共享的契约解析器
 
@@ -38,11 +38,11 @@
 | **II. 零安装客户端，单一服务端入口** | 客户端是同源托管的 HTML+JS，只用浏览器原生 `fetch`/`ReadableStream`；不需要任何客户端软件；入口只有服务端 Funnel 一条 | PASS |
 | **III. 暴露即攻击面（不可协商）** | 每设备令牌 + 每请求校验 + 限流 + 失败锁定 + 动作审计 + 挂载范围收敛；未授权一律 401 且响应不泄露会话信息；吊销即时生效 | PASS |
 | **IV. 实证优先于推断** | 本计划中所有数字标来源：延迟/内存来自 2026-11-03 现场实测（见评估产物）；`quickstart.md` 的每条验证场景对应一个 SC，可重放 | PASS |
-| **V. 最小可运维** | 单容器 + 3 个卷；无数据库、无消息队列、无外部缓存；回滚 = 换回上一个镜像 tag | PASS |
+| **V. 最小可运维** | 单容器 + 3 个卷；SQLite 是嵌入在进程内的库（不是独立服务），没有额外常驻进程、没有网络端口；无消息队列、无外部缓存；回滚 = 换回上一个镜像 tag | PASS |
 
 **Gate 结论**：无违反项，Phase 0 可以开始；无需 Complexity Tracking。
 
-**Post-Design 复检**（Phase 1 完成后）：数据模型与契约未引入额外常驻组件；认证链路仍是每请求一次本地文件读取（带内存缓存与版本号失效），未破坏原则 V。
+**Post-Design 复检**（Phase 1 完成后）：SQLite 以库的形式嵌入同一进程，未引入第二个常驻服务或网络依赖；认证链路是每请求一次本地索引查询（微秒级），未破坏原则 V；数据模型与契约未扩大攻击面。
 
 ## Project Structure
 
@@ -85,8 +85,9 @@ src/
 │   │   ├── resource-loader.ts # DefaultResourceLoader + 不可信内容规则注入
 │   │   └── events.ts        # SDK 事件 → SSE 事件的映射与动作摘要提取
 │   ├── store/
+│   │   ├── db.ts            # SQLite 连接、WAL、建表迁移、事务封装
 │   │   ├── device-store.ts  # 令牌表：哈希、标签、最近使用、吊销
-│   │   └── audit-store.ts   # 审计日志追加与查询
+│   │   └── audit-store.ts   # 审计事件写入与查询
 │   └── util/
 │       ├── sse.ts           # SSE 帧编码、心跳、客户端断开处理
 │       └── tokens.ts        # 令牌生成与哈希

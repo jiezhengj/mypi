@@ -1,17 +1,46 @@
 # Phase 1 Data Model: 远程可达的个人 Agent
 
-所有实体均落在挂载卷上，无数据库。字段命名与 `src/shared/contracts.ts` 保持一致。
+所有实体落在挂载卷上。令牌与审计存在 SQLite 数据库 `/data/mypi.db`（WAL 模式）；会话仍由 pi 以 JSONL 管理。字段命名与 `src/shared/contracts.ts` 保持一致。
 
 ## 实体总览
 
 | 实体 | 存储位置 | 生命周期 | 归属 |
 | --- | --- | --- | --- |
-| DeviceToken | `/data/config/devices.json` | 手工签发 → 吊销 | 本服务 |
+| DeviceToken | SQLite `device_tokens` | 手工签发 → 吊销 | 本服务 |
 | Session | `/data/sessions/<timestamp>_<uuid>.jsonl` | 无限期 | pi `SessionManager` |
 | Message | 会话 JSONL 内的一行 | 随会话 | pi |
-| ActionRecord | SSE 事件 + 审计日志摘要 | 随会话 / 审计 | 本服务（从 pi 事件派生） |
-| AuditEvent | `/data/audit/audit-YYYY-MM.jsonl` | 无限期（按月分文件） | 本服务 |
+| ActionRecord | SSE 事件 + 审计摘要 | 随会话 / 审计 | 本服务（从 pi 事件派生） |
+| AuditEvent | SQLite `audit_events` | 无限期（只插入） | 本服务 |
 | RuntimeState | 进程内存 | 进程级 | 本服务 |
+
+## SQLite 模式
+
+```sql
+CREATE TABLE IF NOT EXISTS device_tokens (
+  id            TEXT PRIMARY KEY,
+  label         TEXT NOT NULL,
+  token_hash    TEXT NOT NULL UNIQUE,   -- sha256(明文)，64 位十六进制
+  token_prefix  TEXT NOT NULL,          -- 明文前 8 位，仅用于辨认
+  created_at    TEXT NOT NULL,
+  last_used_at  TEXT,
+  revoked_at    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_device_tokens_hash ON device_tokens(token_hash);
+
+CREATE TABLE IF NOT EXISTS audit_events (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts            TEXT NOT NULL,
+  device_id     TEXT,
+  token_prefix  TEXT,
+  kind          TEXT NOT NULL,          -- auth | message | action | abort | device
+  detail        TEXT NOT NULL,          -- ≤200 字符摘要，不含明文与正文
+  result        TEXT NOT NULL           -- ok | denied | error
+);
+CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_events(ts DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_device ON audit_events(device_id, ts DESC);
+```
+
+**库级设置**：`PRAGMA journal_mode=WAL`、`PRAGMA synchronous=NORMAL`、`PRAGMA foreign_keys=ON`。迁移用 `user_version` 递增，启动时执行未应用的迁移。
 
 ## DeviceToken
 
@@ -96,7 +125,7 @@
 | `detail` | string | ≤ 200 字符 | 摘要，**不得包含令牌明文与完整消息正文** |
 | `result` | `ok` \| `denied` \| `error` | 必填 | 结果 |
 
-**分区规则**：按 `YYYY-MM` 分文件；不删除旧文件（FR-016）。
+**分区规则**：不删除任何行（FR-016）；增长靠索引与 `limit` 分页控制查询成本。
 
 ## RuntimeState（进程内存）
 
@@ -129,7 +158,7 @@ RuntimeState 1 ──1 Session（活动会话）
 
 ## 不变量
 
-1. 任何时刻磁盘上不存在令牌明文（签发时的一次性展示除外）。
+1. 任何时刻磁盘上不存在令牌明文（签发时的一次性展示除外）；`device_tokens` 中只有哈希与前缀。
 2. 任何审计行都不包含令牌明文与完整消息正文。
 3. 会话文件只增不改；删除是显式动作，且不自动发生。
 4. `running` 状态最多对应一个执行流。

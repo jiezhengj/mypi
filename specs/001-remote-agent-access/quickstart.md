@@ -102,14 +102,20 @@ curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" \
 
 ### V7 — 限流与锁定（FR-007、SC-005）
 
+参数写死：**同一来源 15 分钟内累计 20 次失败即锁定 15 分钟**；锁定期间即使令牌正确也拒绝。
+
 ```bash
 for i in $(seq 1 25); do
   curl -s -o /dev/null -w '%{http_code} ' -H 'Authorization: Bearer wrong-token' \
     http://127.0.0.1:<PORT>/api/state
 done; echo
+
+# 锁定期间用正确令牌再试一次
+curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" \
+  http://127.0.0.1:<PORT>/api/state
 ```
 
-**通过条件**：前若干次为 401，达到阈值后转为 429 `locked`；锁定期间**正确令牌**也被拒绝；窗口结束后恢复。
+**通过条件**：前 20 次为 `401`，第 21 次起为 `429 locked`；锁定期间正确令牌同样被拒；窗口（15 分钟）结束后恢复。
 
 ### V8 — 吊销即时生效（FR-018、SC-008）
 
@@ -146,9 +152,22 @@ curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN_A" \
 
 ```bash
 docker logs --tail 100 mypi            # 运行日志（不含令牌明文）
-ls -la <DATA_DIR>/audit/               # 审计按月分文件
-cat <DATA_DIR>/audit/audit-$(date +%Y-%m).jsonl | tail -20
-ls -la <DATA_DIR>/sessions/            # 会话文件应只增不减
+ls -la <DATA_DIR>/                       # 应能看到 mypi.db 与 sessions/
+ls -la <DATA_DIR>/sessions/              # 会话文件应只增不减
+
+# 最近 20 条审计（宿主有 sqlite3 时）
+sqlite3 <DATA_DIR>/mypi.db "select ts, kind, result, detail from audit_events order by id desc limit 20;"
+
+# 没有 sqlite3 时，用容器内的 node 查询
+docker exec mypi node -e "
+const { DatabaseSync } = require('node:sqlite');
+const db = new DatabaseSync('/data/mypi.db');
+for (const row of db.prepare('select ts,kind,result,detail from audit_events order by id desc limit 20').all())
+  console.log(row.ts, row.kind, row.result, row.detail);
+"
+
+# 设备清单（哈希与前缀，无明文）
+sqlite3 <DATA_DIR>/mypi.db "select id,label,token_prefix,created_at,last_used_at,revoked_at from device_tokens;"
 ```
 
 ## 回滚
