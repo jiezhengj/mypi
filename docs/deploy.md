@@ -83,6 +83,24 @@ Funnel 常开属于产品状态，不是测试动作。暴露之前必须确认�
 2. 外网地址只指向本服务，不代理同宿主上的其他容器。
 3. CI 的外部检查在工作流里跑通，且日志里看不到任何真实地址。
 
+宿主上已有别的服务占用常见端口时，换一个宿主端口并在 Funnel 侧单独开一个入口，不要去抢既有服务的端口：
+
+```bash
+# 容器侧换宿主端口（示例 8088）
+docker run -d ... -p 8088:8080 ...
+
+# Tailscale Funnel 增加一个独立入口（443 / 8443 / 10000 是可用端口）
+docker exec <TAILSCALE_CONTAINER> tailscale funnel --bg --https=10000 http://127.0.0.1:8088
+docker exec <TAILSCALE_CONTAINER> tailscale funnel status
+```
+
+公网地址形如 `https://<TAILNET_DOMAIN>:10000`，用下面的命令自检：
+
+```bash
+curl -s https://<TAILNET_DOMAIN>:10000/healthz
+curl -s -o /dev/null -w '%{http_code}\n' https://<TAILNET_DOMAIN>:10000/api/state   # 期望 401
+```
+
 ## 已知边界
 
 - 本服务不提供账号体系，一台设备一个令牌；吊销立即生效。
