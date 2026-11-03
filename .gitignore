@@ -14,3 +14,7 @@
 spike/.token.tmp
 spike/body.json
 spike/*.tgz
+
+# Python 缓存
+__pycache__/
+*.pyc
