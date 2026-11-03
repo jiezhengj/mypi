@@ -4,6 +4,8 @@
 import http from "node:http";
 
 const PORT = Number(process.env.MOCK_PORT || 9999);
+// 测试用：在给出工具调用前等待若干毫秒，制造「正在执行」窗口以验证中断。
+const DELAY_MS = Number(process.env.MOCK_DELAY_MS || 0);
 
 function sse(res, obj) {
   res.write(`data: ${JSON.stringify(obj)}\n\n`);
@@ -40,6 +42,7 @@ const server = http.createServer(async (req, res) => {
   };
   const choice = (delta, finish = null) => ({ ...base, choices: [{ index: 0, delta, finish_reason: finish }] });
 
+  if (DELAY_MS) await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
   sse(res, choice({ role: "assistant" }));
 
   const lastMessage = messages[messages.length - 1];
@@ -58,6 +61,9 @@ const server = http.createServer(async (req, res) => {
   if (/写|write|note/i.test(userText)) {
     name = "write";
     args = { path: "/workspace/note.txt", content: `written by mock at ${new Date().toISOString()}\n` };
+  } else if (/sleep|慢/.test(userText)) {
+    name = "bash";
+    args = { command: "sleep 6; echo slow-done" };
   } else {
     name = "bash";
     args = { command: "uname -srm; echo spike-proof > /workspace/spike-proof.txt; date -u" };

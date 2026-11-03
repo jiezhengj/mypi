@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark light" />
+    <title>mypi</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <strong class="brand">mypi</strong>
+      <span id="status" class="pill" data-state="idle">空闲</span>
+      <button id="btn-devices" class="ghost" type="button">设备</button>
+    </header>
+
+    <main id="messages" class="messages" aria-live="polite"></main>
+
+    <form id="composer" class="composer">
+      <textarea id="input" rows="2" placeholder="说点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
+      <div class="composer-actions">
+        <button id="btn-abort" class="danger" type="button" hidden>中断</button>
+        <button id="btn-send" class="primary" type="submit">发送</button>
+      </div>
+    </form>
+
+    <dialog id="dialog-auth" class="dialog">
+      <form method="dialog" id="form-auth">
+        <h2>设备令牌</h2>
+        <p class="hint">粘贴在这台设备上签发的令牌。它只保存在本机浏览器里。</p>
+        <input id="token" type="password" autocomplete="off" placeholder="device token" />
+        <div class="dialog-actions">
+          <button value="cancel" class="ghost" type="button" id="btn-auth-cancel">取消</button>
+          <button value="ok" class="primary" id="btn-auth-save">保存并连接</button>
+        </div>
+        <p id="auth-error" class="error" hidden></p>
+      </form>
+    </dialog>
+
+    <dialog id="dialog-devices" class="dialog">
+      <h2>设备</h2>
+      <ul id="device-list" class="device-list"></ul>
+      <form id="form-device" class="row">
+        <input id="device-label" placeholder="新设备标签，如 phone" />
+        <button class="primary" type="submit">签发</button>
+      </form>
+      <p id="device-token" class="token-once" hidden></p>
+      <div class="dialog-actions">
+        <button class="ghost" type="button" id="btn-devices-close">关闭</button>
+      </div>
+    </dialog>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

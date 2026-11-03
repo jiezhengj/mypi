@@ -1,0 +1,15 @@
+node_modules
+.git
+.gitignore
+.agent-state
+.agents
+.specify
+specs
+tests
+spike
+docs
+.env
+.env.*
+*.log
+coverage
+.tmp

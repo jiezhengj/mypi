@@ -18,3 +18,13 @@ spike/*.tgz
 # Python 缓存
 __pycache__/
 *.pyc
+
+# Node / 构建产物
+node_modules/
+coverage/
+*.log
+
+# 运行期数据（容器外本地跑时产生）
+/data/
+/workspace/
+.tmp/

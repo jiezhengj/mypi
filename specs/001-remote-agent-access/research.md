@@ -131,7 +131,10 @@
 
 ## 未决与验证清单
 
-- **D9 的类型剥离**：实现首日验证 `node src/server/index.ts` 能否直接启动；不能则切 `tsx`。
-- **D13 的 `node:sqlite`**：实现首日验证 `DatabaseSync` 可用（建表、插入、查询、WAL）；不通过则切 `better-sqlite3`。
+- **D9 的类型剥离**：**已验证**。本地 Node 26.0.0 与宿主 Node 24 都能直接运行 `src/server/index.ts`，实测输出 `ts-ok 1`；未引入 `tsx`。注意类型剥离不支持构造器参数属性与 `enum`，实现里已改成显式字段（首轮就踩到 `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`）。
+- **D13 的 `node:sqlite`**：**已验证**。`DatabaseSync` 建表、插入、查询、`PRAGMA journal_mode=WAL` 均可用；未引入 `better-sqlite3`。
 - **D15 的模拟保真度**：Playwright WebKit 与真实 iOS Safari 的差异无法在本期消除；以「降级路径可用」作为对冲，真机行为记入已知未验证项。
-- **Funnel 单向流在 3 分钟以上的长任务**是否会被中继断开：需实测（超时与重连策略在实现阶段定稿）。
+- **Funnel 单向流在 3 分钟以上的长任务**是否会被中继断开：**部分验证**。公网入口的实测回合在 3–5 秒完成，未触到长任务边界；降级路径（轮询补齐）已实现并有单测，但未在公网长任务上触发过。
+- **模型清单来源**：`ModelRuntime.create()` 不指定 `modelsPath` 时会读到宿主用户的 `~/.pi` 配置（本地冒烟时确实读到了真实网关清单）。实现固定传 `modelsPath: <PI_HOME>/models.json` 并关掉创建期网络刷新，容器内模型完全由环境变量决定。
+- **中断语义**：`POST /api/abort` 后状态为 `interrupted`（不是回落到 `idle`），SSE 的 `done.status` 同步反映；下一轮消息可正常执行。
+

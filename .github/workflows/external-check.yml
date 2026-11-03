@@ -1,0 +1,78 @@
+name: external-check
+
+# 唯一一个真正的「外部主机」验证：GitHub runner 从公网访问 Funnel 入口。
+# 只手动触发，避免把外部依赖变成每次提交的必过门槛。
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "外部入口基础 URL（不填则用仓库 secret MYPI_PUBLIC_URL）"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: 外部可达性与鉴权探测
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 解析目标地址并打码
+        env:
+          INPUT_TARGET: ${{ inputs.target }}
+          SECRET_TARGET: ${{ secrets.MYPI_PUBLIC_URL }}
+        run: |
+          target="${INPUT_TARGET:-$SECRET_TARGET}"
+          if [ -z "$target" ]; then
+            echo "::error::缺少目标地址：请传入 target 或配置 MYPI_PUBLIC_URL"
+            exit 1
+          fi
+          target="${target%/}"
+          echo "::add-mask::$target"
+          echo "TARGET=$target" >> "$GITHUB_ENV"
+
+      - name: /healthz 从外部可达
+        run: |
+          code=$(curl -sS -o health.json -w '%{http_code}' --max-time 20 "$TARGET/healthz")
+          echo "healthz 状态码: $code"
+          test "$code" = "200"
+          node -e "const b=require('./health.json'); if(!b.ok) process.exit(1)"
+          echo "外部入口可用：/healthz 返回 200 且 ok=true"
+
+      - name: 未认证访问被拒
+        run: |
+          code=$(curl -sS -o body.json -w '%{http_code}' --max-time 20 "$TARGET/api/state")
+          echo "未认证 /api/state 状态码: $code"
+          test "$code" = "401"
+          node -e "const b=require('./body.json'); if(b.error?.code!=='unauthorized') process.exit(1)"
+          echo "鉴权边界生效：未认证请求返回 unauthorized"
+
+      - name: 未认证发消息被拒
+        run: |
+          code=$(curl -sS -o msg.json -w '%{http_code}' --max-time 20 \
+            -X POST "$TARGET/api/messages" -H 'content-type: application/json' \
+            -d '{"text":"probe"}')
+          echo "未认证 /api/messages 状态码: $code"
+          test "$code" = "401"
+
+      - name: 带令牌完成一轮对话（需要 secret）
+        env:
+          PROBE_TOKEN: ${{ secrets.MYPI_PROBE_TOKEN }}
+        run: |
+          if [ -z "$PROBE_TOKEN" ]; then
+            echo "未配置 MYPI_PROBE_TOKEN，跳过带令牌的端到端探测"
+            exit 0
+          fi
+          echo "::add-mask::$PROBE_TOKEN"
+          code=$(curl -sS -N -o stream.txt -w '%{http_code}' --max-time 120 \
+            -X POST "$TARGET/api/messages" \
+            -H "authorization: Bearer $PROBE_TOKEN" \
+            -H 'content-type: application/json' \
+            --data-binary '{"text":"用一句话回答：现在能收到你的消息吗？"}')
+          echo "带令牌 /api/messages 状态码: $code"
+          test "$code" = "200"
+          grep -q '^event: ' stream.txt
+          grep -q '^event: done' stream.txt
+          echo "端到端可用：收到 SSE 事件并正常结束"
