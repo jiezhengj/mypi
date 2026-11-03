@@ -160,9 +160,32 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST \
 
 ### V11 — 公网入口延迟（SC-001）
 
-从家庭网络之外的设备重复 V2 五次，记录「请求 → 第一个 delta」的时间。
+入口常开，因此直接用公网域名测量，而不是内网 IP：
 
-**通过条件**：P50 < 5 秒、P95 < 8 秒。
+```bash
+# 1) 确认走的是公网路径（不是内网直连）
+getent hosts <PUBLIC_HOST>        # 或 Resolve-DnsName
+
+# 2) 重复 5 次记录「请求 → 首个 delta」
+for i in 1 2 3 4 5; do
+  curl -N -s -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+    -d '{"text":"回一个字"}' https://<PUBLIC_HOST>/api/messages \
+    | awk '/event: delta/{print "first-delta-ms:" systime()*1000; exit}'
+done
+```
+
+**通过条件**：解析到的是公网地址；P50 < 5 秒、P95 < 8 秒。
+
+### V12 — 真正的外部主机（一次即可）
+
+```bash
+gh workflow run external-check.yml -f base_url=https://<PUBLIC_HOST>
+gh run watch
+```
+
+runner 上断言：`/healthz` 可达、`/api/state` 未认证返回 401。地址只作为输入传入并在日志中屏蔽，仓库内不出现真实地址。
+
+**通过条件**：run 成功；换一个 ASN 与地理位置也能连上。
 
 ## 观测与排障
 

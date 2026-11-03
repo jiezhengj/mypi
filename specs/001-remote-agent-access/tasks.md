@@ -128,12 +128,16 @@
 - [ ] T040b [P] Playwright（devDependency，不进镜像）移动视口测试 `tests/integration/mobile-web.test.ts`：WebKit 与 Chromium 各跑 390×844 / 360×640，断言无横向滚动、输入框与中断按钮 ≥ 44×44、首 delta 早于 done（对应 V10、SC-006 的模拟部分）
 - [ ] T040c 客户端降级路径：流式不可用或中断时改走非流式完成同一轮对话，并在界面告知降级（FR-020）；用 Playwright 强制关闭流式验证该路径
 - [ ] T040d 把「真机行为未验证」写入 `quickstart.md` 的已知风险栏与 `research.md` 的验证清单，不得写成已通过
-- [ ] T041 [P] 性能测量（V11、SC-001）：重复 5 次记录「请求 → 首个 `delta`」，把 P50/P95 填入 quickstart 验证记录
+- [ ] T041 [P] 性能测量（V11、SC-001）：本机经公网域名重复 5 次记录「请求 → 首个 `delta`」，把 P50/P95 填入 quickstart 验证记录
 - [ ] T042 安全加固复查：响应头（`nosniff`、`frame-ancestors`、`referrer-policy`）、CSP、`/healthz` 不含会话信息、日志不打印令牌
-- [ ] T043 [P] 运维文档占位：`docs/deploy.md`（卷、入口、回滚、备份=复制 `mypi.db`），全部使用占位符
+- [ ] T043 [P] 运维文档占位：`docs/deploy.md`（卷、入口常开、回滚、备份=复制 `mypi.db`），全部使用占位符
 - [ ] T044 [P] 依赖审计：`npm audit`（或等价）结果记录；无高危项才继续
 - [ ] T045 全量验证：按 quickstart V1–V11 演练并填完验证记录表
 - [ ] T046 收尾：清理临时文件、补 `.env.example`（占位值）、确认 `node scripts/secret-scan.mjs --all` 通过
+- [ ] T047 构造「家庭之外」场景：以公网域名 + 强制外部 egress 访问，断言解析到公网地址、TLS 指向公网 ingress、RTT 比 LAN 高一个数量级；把输出存为证据
+- [ ] T048 GitHub Actions 外部探测：`.github/workflows/external-check.yml`（`workflow_dispatch`，`base_url` 作为输入并 `::add-mask::`），runner 上断言 `/healthz` 可达与 `/api/state` 为 401；仓库内不出现真实地址
+- [ ] T049 双设备等价验证：Playwright 两个独立 context（不同 UA/viewport/令牌）验证会话一致与吊销隔离，替代「第二台物理设备」
+- [ ] T050 构造 ENOSPC：用小容量卷让写入失败，验证 FR-017 的显式报错与不截断
 
 ---
 
@@ -190,6 +194,24 @@ Task: "tests/integration/us1-abort.test.ts — 中断后恢复"
 1. 基础就绪 → 2. US1（可异地对话）→ 3. US2（重启不丢）→ 4. US3（多设备一致）→ 5. 凭证管理 → 6. 收尾
 
 每个增量都独立可验证，且不破坏前一个增量。
+
+## 执行边界（谁来做，哪些做不了）
+
+**全部任务由 Agent 执行，项目所有者不参与任何测试。** 因此凡是依赖「有人拿设备点一下」的验收，都已改成可自动判定的形式或构造场景：
+
+| 需要的真实条件 | 构造方式 | 任务 |
+| --- | --- | --- |
+| 家庭之外的网络 | 公网域名 + 强制外部 egress，断言公网解析与 RTT 差异 | T047 |
+| 真正的外部主机 | GitHub Actions runner 跑一次探测（地址仅作运行时输入并屏蔽） | T048 |
+| 第二台设备 | Playwright 两个独立 context（不同 UA/viewport/令牌） | T049 |
+| 磁盘写满 | 小容量卷制造 ENOSPC | T050 |
+| 断流 / 弱网 | 主动 abort 连接、限速 | T023、T040c |
+| 锁定 | 真实打 21 次失败 | T014、V7 |
+| 服务重启 | `docker restart` | T030 |
+
+**唯一需要所有者操作的阻塞项**：删除含旧提交的远端仓库并重建（需 `gh auth refresh -h github.com -s delete_repo`）。它不属于本 Feature 的实现，但会一直留在安全待办里。
+
+**明确无法验证、不得写成已通过**：真实 iOS Safari 的流式行为、软键盘遮挡、物理意义上的第二台设备。
 
 ## Notes
 
